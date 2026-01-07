@@ -1,0 +1,623 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Geometric AR Experience</title>
+    
+    <!-- Three.js -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    
+    <!-- Tracking.js -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/tracking.js/1.1.3/tracking-min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/tracking.js/1.1.3/data/face-min.js"></script>
+
+    <style>
+        :root {
+            --bg-gradient: radial-gradient(circle at center, #fdfbf7 0%, #ebedee 100%);
+            --accent: #a1c4fd;
+            --glass: rgba(255, 255, 255, 0.95);
+            --shadow: 0 20px 50px rgba(0,0,0,0.15);
+        }
+
+        body {
+            margin: 0;
+            overflow: hidden;
+            background: var(--bg-gradient);
+            font-family: 'Garamond', serif;
+            color: #555;
+            user-select: none;
+            touch-action: none;
+            cursor: crosshair;
+        }
+
+        #canvas-container {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100vw;
+            height: 100vh;
+            z-index: 1;
+        }
+
+        /* Video nascosto per tracking */
+        #video {
+            position: absolute;
+            top: 0;
+            left: 0;
+            opacity: 0;
+            pointer-events: none;
+            width: 320px;
+            height: 240px;
+            z-index: 0;
+        }
+
+        /* MODALE CONSENSO (Z-INDEX MASSIMO) */
+        #permission-modal {
+            position: fixed;
+            top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(230, 230, 230, 0.9);
+            backdrop-filter: blur(15px);
+            z-index: 9999; /* Altissimo */
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            opacity: 1;
+            transition: opacity 0.5s;
+        }
+
+        .modal-card {
+            background: white;
+            padding: 50px;
+            border-radius: 30px;
+            box-shadow: var(--shadow);
+            text-align: center;
+            max-width: 450px;
+            width: 90%;
+            border: 1px solid rgba(255,255,255,0.5);
+            animation: slideUp 0.6s cubic-bezier(0.2, 0.8, 0.2, 1);
+        }
+
+        @keyframes slideUp { from { transform: translateY(50px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+
+        .modal-icon { font-size: 50px; margin-bottom: 20px; display: block; }
+        .modal-title { font-size: 1.5rem; text-transform: uppercase; letter-spacing: 3px; margin-bottom: 15px; color: #333; }
+        .modal-desc { font-size: 1rem; color: #666; line-height: 1.6; margin-bottom: 40px; }
+
+        .btn-group { display: flex; gap: 15px; justify-content: center; flex-wrap: wrap; }
+
+        .btn {
+            padding: 15px 30px;
+            border-radius: 50px;
+            border: none;
+            cursor: pointer;
+            font-size: 0.9rem;
+            letter-spacing: 1px;
+            text-transform: uppercase;
+            font-weight: 600;
+            transition: all 0.2s;
+            min-width: 140px;
+        }
+        
+        .btn-primary { 
+            background: #a1c4fd; 
+            color: white; 
+            box-shadow: 0 10px 20px rgba(161, 196, 253, 0.4); 
+        }
+        .btn-primary:hover { transform: translateY(-2px); box-shadow: 0 15px 25px rgba(161, 196, 253, 0.6); }
+        .btn-primary:active { transform: translateY(0); }
+        
+        .btn-secondary { background: #f0f2f5; color: #888; }
+        .btn-secondary:hover { background: #e1e4e8; color: #555; }
+
+        .error-msg {
+            color: #ff6b6b;
+            font-size: 0.8rem;
+            margin-top: 15px;
+            display: none;
+        }
+
+        /* UI LAYER */
+        #ui-layer {
+            position: absolute;
+            top: 0; left: 0; width: 100%; height: 100%;
+            z-index: 10;
+            pointer-events: none;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+            padding: 30px;
+            box-sizing: border-box;
+            opacity: 0; /* Nascosto finché non parte */
+            transition: opacity 1s;
+        }
+
+        .header { text-align: center; }
+        .title { font-size: 1.4rem; letter-spacing: 4px; text-transform: uppercase; color: #444; margin: 0; }
+        .subtitle { font-size: 0.8rem; font-style: italic; color: #889bb0; margin-top: 5px; }
+
+        #cam-status {
+            font-size: 10px; text-transform: uppercase; letter-spacing: 1px; color: #ccc; margin-top: 10px;
+            display: flex; align-items: center; justify-content: center; gap: 8px;
+        }
+        .dot { width: 8px; height: 8px; background: #ccc; border-radius: 50%; }
+        .dot.active { background: #00ff88; box-shadow: 0 0 8px #00ff88; }
+        .dot.mouse { background: #a1c4fd; }
+
+        .status-container { width: 100%; max-width: 300px; margin: 0 auto; text-align: center; }
+        .status-text { font-size: 11px; letter-spacing: 2px; text-transform: uppercase; margin-bottom: 8px; color: #889bb0; }
+        .track { width: 100%; height: 4px; background: rgba(0,0,0,0.05); border-radius: 4px; overflow: hidden; }
+        .fill { width: 0%; height: 100%; background: linear-gradient(90deg, #c2e9fb 0%, #a1c4fd 100%); transition: width 0.2s ease-out; }
+
+        #msg-3d {
+            position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
+            font-size: 2.5rem; color: #fff; text-shadow: 0 0 30px rgba(161, 196, 253, 0.9);
+            opacity: 0; pointer-events: none; letter-spacing: 8px; text-transform: uppercase; mix-blend-mode: overlay; white-space: nowrap;
+        }
+
+        #loader {
+            position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%);
+            font-size: 12px; letter-spacing: 4px; color: #aaa; z-index: 50; display: none;
+            animation: pulse 1s infinite;
+        }
+        @keyframes pulse { 0% { opacity: 0.5; } 50% { opacity: 1; } 100% { opacity: 0.5; } }
+    </style>
+</head>
+<body>
+
+    <video id="video" width="320" height="240" preload autoplay loop muted playsinline></video>
+
+    <!-- MODALE CONSENSO -->
+    <div id="permission-modal">
+        <div class="modal-card">
+            <div class="modal-icon">📷</div>
+            <div class="modal-title">Accesso Camera</div>
+            <div class="modal-desc">
+                Per attivare l'effetto 3D olografico che segue il tuo volto, abbiamo bisogno di accedere alla tua webcam.
+                <br><br>
+                Nessun video viene registrato o inviato a server. Tutto avviene sul tuo dispositivo.
+            </div>
+            <div class="btn-group">
+                <button class="btn btn-secondary" onclick="startWithMouse()">Usa Mouse</button>
+                <button class="btn btn-primary" id="btn-camera" onclick="requestCamera()">Attiva Camera</button>
+            </div>
+            <div class="error-msg" id="error-msg">Camera bloccata o non disponibile. Uso il mouse.</div>
+        </div>
+    </div>
+
+    <div id="loader">INIZIALIZZAZIONE...</div>
+    <div id="canvas-container"></div>
+
+    <div id="ui-layer">
+        <div class="header">
+            <h1 class="title">Studio Geometrico</h1>
+            <div class="subtitle">Esperienza immersiva</div>
+            <div id="cam-status"><div class="dot" id="cam-dot"></div> <span id="cam-text">...</span></div>
+        </div>
+
+        <div id="msg-3d">Opera Viva</div>
+
+        <div class="status-container">
+            <div class="status-text">Colora la composizione</div>
+            <div class="track">
+                <div class="fill" id="progress-bar"></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- SHADERS -->
+    <script id="vertexShader" type="x-shader/x-vertex">
+        varying vec2 vUv;
+        varying vec3 vWorldPosition;
+        varying vec3 vNormal;
+        varying float vDisplacement;
+
+        uniform float uTime;
+        uniform sampler2D uTexture;
+        uniform float uLiquidState; 
+        uniform float uWaveAmp;
+
+        float fluid(vec2 p, float t) {
+            return sin(p.y * 3.0 + t) * 0.25 + sin(p.x * 2.5 + t * 0.8) * 0.25;
+        }
+
+        void main() {
+            vUv = uv;
+            vec4 tex = texture2D(uTexture, uv);
+            float brightness = dot(tex.rgb, vec3(0.299, 0.587, 0.114));
+
+            // EXTREME 3D RELIEF
+            float wave = fluid(uv, uTime) * uWaveAmp;
+            float relief = brightness * 12.0; 
+            float totalDisp = (wave + relief) * uLiquidState;
+            vDisplacement = totalDisp;
+
+            vec3 newPos = position + normal * totalDisp;
+            vec4 worldPos = modelMatrix * vec4(newPos, 1.0);
+            vWorldPosition = worldPos.xyz;
+            vNormal = normalMatrix * normal;
+            gl_Position = projectionMatrix * viewMatrix * worldPos;
+        }
+    </script>
+
+    <script id="fragmentShader" type="x-shader/x-fragment">
+        varying vec2 vUv;
+        varying vec3 vNormal;
+        varying vec3 vWorldPosition;
+        varying float vDisplacement;
+
+        uniform sampler2D uTexture;
+        uniform sampler2D uMask;     
+        uniform float uLiquidState;  
+        uniform float uTime;
+        uniform vec3 uHeadPos; 
+
+        void main() {
+            vec4 texColor = texture2D(uTexture, vUv);
+            float mask = texture2D(uMask, vUv).r;
+
+            float luma = dot(texColor.rgb, vec3(0.299, 0.587, 0.114));
+            vec3 paper = vec3(0.98); 
+            vec3 sketch = paper * (0.95 + luma * 0.05);
+            vec3 paint = texColor.rgb;
+
+            vec3 normal = normalize(vNormal);
+            vec3 viewDir = normalize(uHeadPos - vWorldPosition);
+            
+            vec3 lightDir = normalize(vec3(0.0, 10.0, 10.0));
+            vec3 halfDir = normalize(lightDir + viewDir);
+            
+            float spec = pow(max(dot(normal, halfDir), 0.0), 90.0);
+            float fresnel = pow(1.0 - max(dot(viewDir, normal), 0.0), 2.0);
+            
+            vec3 iridescent = vec3(
+                sin(vDisplacement * 1.5 + uTime) * 0.5 + 0.5,
+                sin(vDisplacement * 1.5 + uTime + 1.5) * 0.5 + 0.5,
+                sin(vDisplacement * 1.5 + uTime + 3.0) * 0.5 + 0.5
+            ) * 0.08;
+
+            vec3 liquid = paint * 0.8 + vec3(spec) * 1.5 + vec3(fresnel) * 0.4 + iridescent;
+
+            float paintAlpha = smoothstep(0.0, 0.15, mask);
+            vec3 art2D = mix(sketch, paint, paintAlpha);
+            vec3 finalColor = mix(art2D, liquid, uLiquidState);
+
+            gl_FragColor = vec4(finalColor, 1.0);
+        }
+    </script>
+
+    <script>
+        const CONFIG = {
+            brushSize: 75,         
+            triggerPercent: 0.95,  
+            morphSpeed: 0.01,
+            camSensitivityX: 4.0,
+            camSensitivityY: 4.0,
+            smoothing: 0.08
+        };
+
+        // CORE VARIABLES
+        let scene, camera, renderer, mesh;
+        let raycaster = new THREE.Raycaster();
+        let mouse = new THREE.Vector2(); 
+        
+        // TRACKING
+        let headPos = { x: 0, y: 0 };
+        let smoothedHead = { x: 0, y: 0 };
+        let trackerTask;
+        let isCamActive = false;
+        let useCamera = false;
+
+        // MASKS & STATE
+        let maskCanvas, maskCtx, maskTexture;
+        let countCanvas, countCtx;
+        let isLoaded = false;
+        let isMagicActive = false;
+        let liquidVal = 0.0;
+        let coveredPercent = 0;
+
+        // UI REFS
+        const loader = document.getElementById('loader');
+        const progressBar = document.getElementById('progress-bar');
+        const msg3d = document.getElementById('msg-3d');
+        const camDot = document.getElementById('cam-dot');
+        const camText = document.getElementById('cam-text');
+        const modal = document.getElementById('permission-modal');
+        const uiLayer = document.getElementById('ui-layer');
+        const errMsg = document.getElementById('error-msg');
+        const btnCamera = document.getElementById('btn-camera');
+
+        // --- GESTIONE PERMESSI ---
+
+        function startWithMouse() {
+            closeModal();
+            useCamera = false;
+            init();
+        }
+
+        async function requestCamera() {
+            btnCamera.innerText = "Richiesta in corso...";
+            btnCamera.style.opacity = "0.7";
+            
+            try {
+                // Chiamata esplicita per forzare il prompt del browser
+                const stream = await navigator.mediaDevices.getUserMedia({ video: true });
+                
+                // Se arriviamo qui, l'utente ha detto SI
+                // Fermiamo lo stream grezzo (tracking.js ne aprirà uno suo o possiamo passarglielo, 
+                // ma per compatibilità con tracking.js lasciamo fare a lui ora che abbiamo il permesso)
+                stream.getTracks().forEach(track => track.stop());
+
+                useCamera = true;
+                closeModal();
+                init();
+
+            } catch (err) {
+                console.warn("Camera negata o errore:", err);
+                // Fallback automatico
+                errMsg.style.display = 'block';
+                btnCamera.innerText = "Riprova";
+                setTimeout(() => startWithMouse(), 2000); // Avvia col mouse dopo 2 sec
+            }
+        }
+
+        function closeModal() {
+            modal.style.opacity = 0;
+            setTimeout(() => {
+                modal.style.display = 'none';
+                loader.style.display = 'block';
+            }, 500);
+        }
+
+        // --- INIZIALIZZAZIONE ---
+
+        function init() {
+            const container = document.getElementById('canvas-container');
+
+            scene = new THREE.Scene();
+            camera = new THREE.PerspectiveCamera(35, window.innerWidth / window.innerHeight, 0.1, 100);
+            camera.position.z = 50; 
+
+            renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+            container.appendChild(renderer.domElement);
+
+            initMasks();
+            createCleanGeometricArt();
+
+            window.addEventListener('resize', onResize);
+            document.addEventListener('mousemove', onMouseMove);
+            document.addEventListener('touchmove', onTouchMove, { passive: false });
+
+            // Avvio Tracking o UI Mouse
+            if (useCamera) {
+                initTracker();
+            } else {
+                loader.style.display = 'none';
+                uiLayer.style.opacity = 1;
+                updateCamStatus('mouse');
+            }
+
+            animate();
+        }
+
+        function initTracker() {
+            const tracker = new tracking.ObjectTracker('face');
+            tracker.setInitialScale(4);
+            tracker.setStepSize(2);
+            tracker.setEdgesDensity(0.1);
+
+            trackerTask = tracking.track('#video', tracker, { camera: true });
+
+            tracker.on('track', function(event) {
+                if(uiLayer.style.opacity == 0) {
+                    loader.style.display = 'none';
+                    uiLayer.style.opacity = 1;
+                }
+
+                if (event.data.length === 0) {
+                    // Viso perso, non resettiamo a 0 per evitare scatti
+                    updateCamStatus('lost');
+                } else {
+                    updateCamStatus('active');
+                    const rect = event.data[0];
+                    const centerX = -((rect.x + rect.width / 2) / 320 * 2 - 1);
+                    const centerY = -((rect.y + rect.height / 2) / 240 * 2 - 1);
+                    
+                    headPos.x = centerX * CONFIG.camSensitivityX;
+                    headPos.y = centerY * CONFIG.camSensitivityY;
+                    isCamActive = true;
+                }
+            });
+
+            trackerTask.on('error', (e) => {
+                console.warn("Errore tracking.js");
+                useCamera = false;
+                updateCamStatus('error');
+                loader.style.display = 'none';
+                uiLayer.style.opacity = 1;
+            });
+        }
+
+        function updateCamStatus(type) {
+            camDot.className = 'dot';
+            if(type === 'active') {
+                camDot.classList.add('active');
+                camText.innerText = "Tracking Viso Attivo";
+            } else if (type === 'mouse') {
+                camDot.classList.add('mouse');
+                camText.innerText = "Controllo Mouse";
+            } else if (type === 'lost') {
+                camDot.classList.add('active'); // Resta verde ma avvisa
+                camText.innerText = "Cercando volto...";
+            } else {
+                camText.innerText = "Camera Off";
+            }
+        }
+
+        // --- ART GENERATION ---
+
+        function initMasks() {
+            maskCanvas = document.createElement('canvas');
+            maskCanvas.width = 1024; maskCanvas.height = 1024;
+            maskCtx = maskCanvas.getContext('2d');
+            maskCtx.fillStyle = 'black'; maskCtx.fillRect(0,0,1024,1024);
+            maskTexture = new THREE.CanvasTexture(maskCanvas);
+            maskTexture.minFilter = THREE.LinearFilter;
+
+            countCanvas = document.createElement('canvas');
+            countCanvas.width = 64; countCanvas.height = 64;
+            countCtx = countCanvas.getContext('2d');
+            countCtx.fillStyle = 'black'; countCtx.fillRect(0,0,64,64);
+        }
+
+        function createCleanGeometricArt() {
+            const c = document.createElement('canvas');
+            c.width = 1024; c.height = 1024;
+            const ctx = c.getContext('2d');
+            
+            const grd = ctx.createLinearGradient(0, 0, 1024, 1024);
+            grd.addColorStop(0, "#ffffff"); grd.addColorStop(1, "#f2f4f8");
+            ctx.fillStyle = grd; ctx.fillRect(0, 0, 1024, 1024);
+
+            const shapes = [
+                { type: 'circle', x: 512, y: 512, r: 250, c: '#E74C3C' }, 
+                { type: 'rect', x: 200, y: 200, w: 200, h: 200, c: '#2C3E50' }, 
+                { type: 'rect', x: 750, y: 700, w: 220, h: 220, c: '#3498DB' }, 
+                { type: 'tri', x: 800, y: 200, r: 150, c: '#F1C40F' }, 
+                { type: 'circle', x: 250, y: 800, r: 120, c: '#2C3E50' } 
+            ];
+
+            shapes.forEach(s => {
+                ctx.fillStyle = s.c;
+                ctx.shadowColor = "rgba(0,0,0,0.15)"; ctx.shadowBlur = 20; ctx.shadowOffsetY = 10;
+                ctx.beginPath();
+                if(s.type === 'circle') { ctx.arc(s.x, s.y, s.r, 0, Math.PI*2); ctx.fill(); } 
+                else if(s.type === 'rect') { ctx.fillRect(s.x, s.y, s.w, s.h); } 
+                else if(s.type === 'tri') { 
+                    ctx.moveTo(s.x, s.y - s.r); 
+                    ctx.lineTo(s.x + s.r, s.y + s.r); 
+                    ctx.lineTo(s.x - s.r, s.y + s.r); 
+                    ctx.fill(); 
+                }
+            });
+            createMesh(new THREE.CanvasTexture(c));
+        }
+
+        function createMesh(texture) {
+            texture.minFilter = THREE.LinearFilter;
+            const screenAspect = window.innerWidth / window.innerHeight;
+            const visibleHeight = 2 * Math.tan((35 * Math.PI) / 360) * 50; 
+            const visibleWidth = visibleHeight * screenAspect;
+
+            let meshH = visibleHeight * 0.75; 
+            let meshW = meshH * 1.0;
+            if(meshW > visibleWidth * 0.75) { meshW = visibleWidth * 0.75; meshH = meshW; }
+
+            const geometry = new THREE.PlaneGeometry(meshW, meshH, 350, 350);
+            const material = new THREE.ShaderMaterial({
+                uniforms: {
+                    uTime: { value: 0 },
+                    uTexture: { value: texture },
+                    uMask: { value: maskTexture },
+                    uLiquidState: { value: 0.0 },
+                    uWaveAmp: { value: 1.0 },
+                    uHeadPos: { value: new THREE.Vector3(0,0,50) }
+                },
+                vertexShader: document.getElementById('vertexShader').textContent,
+                fragmentShader: document.getElementById('fragmentShader').textContent,
+                side: THREE.DoubleSide
+            });
+            mesh = new THREE.Mesh(geometry, material);
+            scene.add(mesh);
+            isLoaded = true;
+        }
+
+        // --- INTERACTION & ANIMATION ---
+
+        function updatePainting() {
+            if(!mesh || !isLoaded) return; 
+            raycaster.setFromCamera(mouse, camera);
+            const intersects = raycaster.intersectObject(mesh);
+            if(intersects.length > 0) {
+                const uv = intersects[0].uv;
+                paint(maskCtx, uv.x * 1024, (1-uv.y) * 1024, CONFIG.brushSize);
+                maskTexture.needsUpdate = true;
+                const scale = 64/1024;
+                paint(countCtx, uv.x * 64, (1-uv.y) * 64, CONFIG.brushSize * scale);
+                if(Math.random() > 0.7) checkProgress();
+            }
+        }
+
+        function paint(ctx, x, y, r) {
+            ctx.beginPath();
+            const g = ctx.createRadialGradient(x, y, 0, x, y, r);
+            g.addColorStop(0, "rgba(255,255,255,0.8)"); 
+            g.addColorStop(1, "rgba(255,255,255,0)");
+            ctx.fillStyle = g;
+            ctx.globalCompositeOperation = 'lighten';
+            ctx.arc(x, y, r, 0, Math.PI*2);
+            ctx.fill();
+        }
+
+        function checkProgress() {
+            const data = countCtx.getImageData(0,0,64,64).data;
+            let count = 0;
+            for(let i=0; i<data.length; i+=4) { if(data[i] > 100) count++; }
+            coveredPercent = count / (64*64);
+            progressBar.style.width = Math.min(coveredPercent * 100, 100) + '%';
+            if(coveredPercent > CONFIG.triggerPercent && !isMagicActive) {
+                isMagicActive = true;
+                msg3d.style.opacity = 1;
+                msg3d.style.transition = "opacity 2s ease";
+            }
+        }
+
+        function onMouseMove(e) {
+            mouse.x = (e.clientX / window.innerWidth) * 2 - 1;
+            mouse.y = -(e.clientY / window.innerHeight) * 2 + 1;
+            if(!useCamera) { headPos.x = mouse.x * 2.0; headPos.y = mouse.y * 2.0; }
+        }
+
+        function onTouchMove(e) {
+            if(e.touches.length) {
+                e.preventDefault();
+                mouse.x = (e.touches[0].clientX / window.innerWidth) * 2 - 1;
+                mouse.y = -(e.touches[0].clientY / window.innerHeight) * 2 + 1;
+                if(!useCamera) { headPos.x = mouse.x * 2.0; headPos.y = mouse.y * 2.0; }
+            }
+        }
+
+        function onResize() {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        }
+
+        function animate() {
+            requestAnimationFrame(animate);
+            if(!mesh) return;
+
+            const t = performance.now() * 0.001;
+            mesh.material.uniforms.uTime.value = t;
+            updatePainting();
+
+            // Tracking Smooth
+            smoothedHead.x += (headPos.x - smoothedHead.x) * CONFIG.smoothing;
+            smoothedHead.y += (headPos.y - smoothedHead.y) * CONFIG.smoothing;
+            mesh.material.uniforms.uHeadPos.value.set(smoothedHead.x * 10, smoothedHead.y * 10, 50);
+
+            if(isMagicActive) {
+                liquidVal += (1.0 - liquidVal) * CONFIG.morphSpeed;
+                mesh.material.uniforms.uLiquidState.value = liquidVal;
+                // Off-Axis Projection
+                camera.position.x = smoothedHead.x * 5.0; 
+                camera.position.y = smoothedHead.y * 5.0;
+                camera.lookAt(0,0,0);
+            }
+            renderer.render(scene, camera);
+        }
+    </script>
+</body>
+</html>
