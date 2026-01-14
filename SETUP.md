@@ -1,6 +1,6 @@
 # INSTALLAZIONE E SETUP
 
-Questo documento descrive come installare e configurare Liquid Mouse Pro.
+Questo documento descrive come installare e configurare Liquid Mouse.
 
 ## 🖥️ Sistema Operativo Supportati
 
@@ -30,7 +30,7 @@ python -m pip install --upgrade pip
 pip install -r requirements.txt
 
 # 3. Avvia il server:
-python server.py
+python server.pyw
 
 # 4. Dal telefono apri il link mostrato nel terminale
 ```
@@ -49,7 +49,7 @@ source venv/bin/activate
 pip install -r requirements.txt
 
 # Avvia:
-python3 server.py
+python3 server.pyw
 ```
 
 ## 🐧 Installazione su Linux
@@ -68,7 +68,7 @@ source venv/bin/activate
 pip install -r requirements.txt
 
 # Avvia:
-python3 server.py
+python3 server.pyw
 ```
 
 ## 🔍 Verifica dell'Installazione
@@ -93,9 +93,9 @@ python3 test.py
 
 2. **Esegui il server:**
    ```bash
-   python server.py
+   python server.pyw
    # o
-   python3 server.py
+   python3 server.pyw
    ```
 
 3. **Vedrai un output come questo:**
@@ -225,7 +225,7 @@ Prima di iniziare a usarlo:
 - [ ] Python 3.7+ installato e nel PATH
 - [ ] `pip install -r requirements.txt` completato senza errori
 - [ ] `python test.py` mostra ✅ per tutto
-- [ ] Server avvia senza errori (`python server.py`)
+- [ ] Server avvia senza errori (`python server.pyw`)
 - [ ] Riesci ad accedere a `http://localhost:8000` dal computer
 - [ ] Riesci ad accedere da smartphone alla stessa rete
 - [ ] La connessione mostra "LINKED" in verde
