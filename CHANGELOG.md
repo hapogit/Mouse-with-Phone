@@ -2,6 +2,16 @@
 
 Tutti i cambiamenti importanti a questo progetto saranno documentati in questo file.
 
+## [1.3.2] - 2026-01-15 (Stability & Typing)
+### ✨ Aggiunto
+- **Typing:** Supporto automatico per "smart quotes" (virgolette curve) da mobile.
+- **Debounce:** Filtro anti-rimbalzo per il tasto Backspace (evita cancellazioni doppie involontarie).
+- **Sicurezza:** Chiusura forzata pulita dell'applicazione (`os._exit`).
+
+### 🔧 Modificato
+- **Docs:** Aggiornata documentazione con avvisi su Secure Desktop (Login Windows).
+- **Core:** Ottimizzazione gestione percorsi e caricamento risorse.
+
 ## [1.2.0] - 2026-01-14 (Tray Edition)
 ### ✨ Aggiunto
 - **GUI (Interfaccia Grafica):** Sostituito il terminale nero con una finestra moderna in stile Liquid Mouse.

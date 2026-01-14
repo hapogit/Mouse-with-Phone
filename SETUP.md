@@ -30,7 +30,7 @@ python -m pip install --upgrade pip
 pip install -r requirements.txt
 
 # 3. Avvia il server:
-python server.pyw
+python server.py
 
 # 4. Dal telefono apri il link mostrato nel terminale
 ```
@@ -133,7 +133,7 @@ python3 test.py
 
 ### Sensibilità del Mouse
 
-Modifica il valore `SENSITIVITY` in `server.py`:
+Modifica il valore `SENSITIVITY` in `server.pyw`:
 
 ```python
 SENSITIVITY = 1.8  # Valore predefinito
@@ -144,7 +144,7 @@ SENSITIVITY = 1.8  # Valore predefinito
 
 ### Porte Personalizzate
 
-Se le porte 8765 o 8000 sono occupate, modificale in `server.py`:
+Se le porte 8765 o 8000 sono occupate, modificale in `server.pyw`:
 
 ```python
 PORT = 8765        # Cambia il numero se occupato
@@ -223,10 +223,7 @@ pip install pyautogui
 Prima di iniziare a usarlo:
 
 - [ ] Python 3.7+ installato e nel PATH
-- [ ] `pip install -r requirements.txt` completato senza errori
-- [ ] `python test.py` mostra ✅ per tutto
 - [ ] Server avvia senza errori (`python server.pyw`)
-- [ ] Riesci ad accedere a `http://localhost:8000` dal computer
 - [ ] Riesci ad accedere da smartphone alla stessa rete
 - [ ] La connessione mostra "LINKED" in verde
 

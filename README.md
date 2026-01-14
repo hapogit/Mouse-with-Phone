@@ -1,4 +1,4 @@
-# 🖱️ Liquid Mouse v1.2.0
+# 🖱️ Liquid Mouse v1.3.2
 
 Liquid Mouse trasforma il tuo smartphone in un touchpad wireless fluido e professionale per il tuo computer, operante interamente sulla rete Wi-Fi locale.
 
@@ -6,9 +6,13 @@ Liquid Mouse trasforma il tuo smartphone in un touchpad wireless fluido e profes
 
 * **Fluid Touch:** Movimento del cursore a bassa latenza.
 * **Smart Scrolling:** Scorrimento inerziale ad alta sensibilità.
-* **Funzioni Avanzate:** Drag & Drop, Seleziona Tutto (Ctrl+A).
-* **Server GUI:** Interfaccia di controllo server moderna con supporto System Tray.
+* **Funzioni Avanzate:** Drag & Drop, Seleziona Tutto (Ctrl+A), Tastiera Remota.
+* **Server GUI:** Interfaccia moderna con supporto System Tray e Icone Personalizzate.
 * **Privacy First:** Nessun cloud, funziona solo sulla rete locale.
+
+## ⚠️ Limitazioni Importanti
+
+* **Schermata di Login/Blocco:** A causa delle restrizioni di sicurezza di Windows (Secure Desktop), l'applicazione **non può interagire** con la schermata di login o quando il PC è bloccato. È necessario utilizzare un mouse/tastiera fisica per inserire la password. Una volta effettuato l'accesso, Liquid Mouse inizierà a funzionare immediatamente.
 
 ## 🚀 Guida Rapida
 
@@ -24,8 +28,9 @@ Liquid Mouse trasforma il tuo smartphone in un touchpad wireless fluido e profes
 3.  **Connessione:**
     Apri il browser del tuo smartphone e digita l'indirizzo IP mostrato (es: `192.168.1.X:8000`).
 
-## 📋 Changelog Recente (v1.2.0)
+## 📋 Changelog Recente (v1.3.2)
 
-- **Rebranding:** Aggiornato nome pacchetto a "Liquid Mouse".
-- **GUI:** Implementata interfaccia grafica e supporto tray icon.
-- **Workflow:** Aggiunte funzionalità di trascinamento e selezione rapida.
+- **Custom Icons:** Supporto per icone personalizzate (.ico) nella finestra e nella tray.
+- **System Tray:** Gestione migliorata del menu contestuale e minimizzazione.
+- **Stabilità:** Controllo automatico dipendenze (Pillow, pystray) con avvisi grafici.
+- **Core:** Ottimizzazione gestione percorsi e caricamento risorse.

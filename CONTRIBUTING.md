@@ -1,4 +1,4 @@
-# 🤝 Contribuire a Liquid Mouse 
+# 🤝 Contribuire a Liquid Mouse
 
 Grazie per l'interesse nel contribuire! Leggi questa guida per capire come aiutare.
 
@@ -54,8 +54,8 @@ Hai un'idea per migliorare il progetto?
 
 ```bash
 # Clona il repository
-git clone https://github.com/tuoutente/liquid-mouse-pro.git
-cd liquid-mouse-pro
+git clone https://github.com/tuoutente/liquid-mouse.git
+cd liquid-mouse
 
 # Crea un ambiente virtuale
 python -m venv venv
@@ -102,7 +102,7 @@ python test.py
 
 ## 📁 Struttura del Codice
 
-### Backend (server.py)
+### Backend (server.pyw)
 
 ```python
 # Funzioni principali:
@@ -196,4 +196,3 @@ Se hai domande:
 ---
 
 **Grazie per aver scelto di contribuire! 🙏**
-

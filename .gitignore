@@ -1,46 +1,36 @@
-# Python
+# --- Python Bytecode & Cache ---
 __pycache__/
 *.py[cod]
 *$py.class
-*.so
-.Python
-build/
-develop-eggs/
-dist/
-downloads/
-eggs/
-.eggs/
-lib/
-lib64/
-parts/
-sdist/
-var/
-wheels/
-pip-wheel-metadata/
-share/python-wheels/
-*.egg-info/
-.installed.cfg
-*.egg
-MANIFEST
 
-# Virtual environments
+# --- Ambienti Virtuali (Virtual Envs) ---
+# È importante ignorare queste cartelle perché contengono librerie specifiche
 venv/
-ENV/
 env/
-.venv
+.venv/
+.env
 
-# IDE
+# --- File di Sistema Operativo ---
+# Windows
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+
+# --- IDE e Editor (Configurazioni locali) ---
 .vscode/
 .idea/
 *.swp
 *.swo
-*~
-.DS_Store
 
-# Testing
-.pytest_cache/
-.coverage
-htmlcov/
+# --- PyInstaller (Se in futuro creerai un .exe) ---
+*.spec
+dist/
+build/
 
-# Logs
+# --- Log e Errori ---
 *.log

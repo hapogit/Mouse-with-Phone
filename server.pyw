@@ -1,9 +1,7 @@
 """
 🖱️ LIQUID MOUSE - Server Application
 ====================================
-Versione: 1.2.0
-Descrizione: Server WebSocket con interfaccia GUI e supporto System Tray.
-Licenza: MIT
+Versione: 1.3.2 (Custom Icon Support)
 """
 
 import asyncio
@@ -13,14 +11,23 @@ import pyautogui
 import socket
 import threading
 import tkinter as tk
-from tkinter import scrolledtext
+from tkinter import messagebox
 from http.server import HTTPServer, SimpleHTTPRequestHandler
 import os
 import sys
+import ctypes
+import time
 
-# --- MODULI SYSTEM TRAY ---
-import pystray
-from PIL import Image, ImageDraw
+# --- GESTIONE DIPENDENZE ---
+try:
+    import pystray
+    from PIL import Image, ImageDraw
+except ImportError:
+    # Crea una finestra TK nascosta per mostrare il messaggio di errore se mancano librerie
+    temp_root = tk.Tk()
+    temp_root.withdraw()
+    messagebox.showerror("Errore Librerie", "Mancano le librerie 'pystray' o 'Pillow'.\n\nEsegui nel terminale:\npip install pystray Pillow")
+    sys.exit(1)
 
 # --- CONFIGURAZIONE SISTEMA ---
 pyautogui.PAUSE = 0
@@ -29,16 +36,28 @@ SENSITIVITY = 1.8
 PORT = 8765
 HTTP_PORT = 8000
 
-# --- PALETTE COLORI (Design System) ---
-COLOR_BG = "#2b2e4a"       # Background principale
-COLOR_TEXT = "#ffffff"     # Testo primario
-COLOR_ACCENT = "#88ffcc"   # Accento (Verde acqua)
-COLOR_LOG_BG = "#1f2235"   # Background area log
-COLOR_LOG_TEXT = "#00ff00" # Testo terminale
+# --- FIX ICONA TASKBAR WINDOWS ---
+try:
+    # Disaccoppia l'icona dalla shell di Python per mostrarla correttamente nella barra
+    ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID('liquidmouse.server.1.3.2')
+except Exception:
+    pass
+
+# --- COLORI (Design System) ---
+COLOR_BG = "#2b2e4a"
+COLOR_TEXT = "#ffffff"
+COLOR_ACCENT = "#88ffcc"
+COLOR_MUTED = "#6c7099"
+COLOR_ERROR = "#ff6b6b"
+COLOR_STATUS_BAR = "#25273f"
+
+# --- PERCORSO FILE ---
+# Ottiene la cartella dove si trova lo script per caricare i file (come l'icona) in modo sicuro
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+ICON_PATH = os.path.join(BASE_DIR, "icon.ico")
 
 # --- UTILITIES DI RETE ---
 def get_local_ip():
-    """Recupera l'indirizzo IP locale della macchina host."""
     try:
         s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         s.connect(("8.8.8.8", 80))
@@ -48,211 +67,179 @@ def get_local_ip():
     except Exception:
         return "127.0.0.1"
 
-# --- LOGICA SERVER WEBSOCKET (Backend) ---
+# --- BACKEND (WebSocket & HTTP) ---
 async def handler(websocket):
-    log_message(f"Dispositivo connesso.")
+    log_message("Dispositivo connesso", color=COLOR_ACCENT)
+    last_backspace_time = 0
     try:
         async for message in websocket:
             try:
                 data = json.loads(message)
                 msg_type = data.get('type', '')
                 
-                # Gestione Movimento Cursore
                 if msg_type == 'move':
                     x = int(float(data.get('x', 0)) * SENSITIVITY)
                     y = int(float(data.get('y', 0)) * SENSITIVITY)
-                    if x != 0 or y != 0:
-                        pyautogui.moveRel(x, y, _pause=False)
-                
-                # Gestione Scorrimento (Scroll)
+                    if x != 0 or y != 0: pyautogui.moveRel(x, y, _pause=False)
                 elif msg_type == 'scroll':
-                    scroll_amount = int(data.get('amount', 0))
-                    if scroll_amount != 0:
-                        pyautogui.scroll(scroll_amount, _pause=False)
-                
-                # Gestione Click Mouse
+                    amt = int(data.get('amount', 0))
+                    if amt != 0: pyautogui.scroll(amt, _pause=False)
                 elif msg_type == 'click':
-                    btn = data.get('btn', 'left')
-                    pyautogui.click(button=btn, _pause=False)
-                
-                # Gestione Input Testo
+                    pyautogui.click(button=data.get('btn', 'left'), _pause=False)
                 elif msg_type == 'text':
                     char = data.get('char', '')
-                    if char:
-                        pyautogui.typewrite(char, interval=0.05) if len(char) == 1 else pyautogui.write(char, _pause=False)
-                
-                # Gestione Tasti Speciali
+                    # Normalizzazione caratteri speciali (smart quotes da mobile)
+                    replacements = {
+                        '’': "'", '‘': "'", 
+                        '“': '"', '”': '"',
+                        '…': '...'
+                    }
+                    for old, new in replacements.items():
+                        char = char.replace(old, new)
+                    if char: pyautogui.write(char, _pause=False)
                 elif msg_type == 'key':
                     key = data.get('key', '')
                     if key:
+                        # Debounce per backspace (evita cancellazioni multiple involontarie)
+                        if key == 'backspace':
+                            now = time.time()
+                            if now - last_backspace_time < 0.08: continue
+                            last_backspace_time = now
                         pyautogui.press(key, _pause=False)
-                        log_message(f"Input Tasto: {key}")
-
-                # Gestione Trascinamento (Drag & Drop)
                 elif msg_type == 'drag':
-                    state = data.get('state', 'up')
-                    if state == 'down':
-                        pyautogui.mouseDown(button='left', _pause=False)
-                        log_message("Modalità Drag: ATTIVA")
-                    else:
-                        pyautogui.mouseUp(button='left', _pause=False)
-                        log_message("Modalità Drag: DISATTIVA")
-
-                # Gestione Scorciatoie (Hotkeys)
+                    if data.get('state') == 'down': pyautogui.mouseDown()
+                    else: pyautogui.mouseUp()
                 elif msg_type == 'hotkey':
-                    keys = data.get('keys', [])
-                    if keys:
-                        pyautogui.hotkey(*keys)
-                        log_message(f"Esecuzione Hotkey: {keys}")
+                    pyautogui.hotkey(*data.get('keys', []))
 
-            except Exception as e:
-                log_message(f"Errore elaborazione: {e}")
-                    
+            except Exception: pass
+            
     except websockets.exceptions.ConnectionClosed:
-        log_message("Dispositivo disconnesso.")
+        log_message("In attesa di connessione...", color="#aaaaaa")
     finally:
-        # Sicurezza: Rilascia il mouse in caso di disconnessione improvvisa
-        pyautogui.mouseUp(button='left')
+        pyautogui.mouseUp()
 
-def start_http_server(port):
-    """Avvia il server HTTP per servire l'interfaccia client."""
-    class MyHTTPRequestHandler(SimpleHTTPRequestHandler):
-        def do_GET(self):
-            if self.path == '/' or self.path == '':
-                self.path = '/index.html'
-            return SimpleHTTPRequestHandler.do_GET(self)
-        def log_message(self, format, *args):
-            pass # Sopprime i log HTTP standard
-    
-    handler = MyHTTPRequestHandler
-    httpd = HTTPServer(("0.0.0.0", port), handler)
-    log_message(f"Servizio HTTP avviato sulla porta {port}")
-    httpd.serve_forever()
+def start_http_server():
+    try:
+        # Cambia la directory di lavoro per servire index.html
+        os.chdir(BASE_DIR)
+        handler = SimpleHTTPRequestHandler
+        handler.log_message = lambda self, format, *args: None # Silenzia log HTTP
+        httpd = HTTPServer(("0.0.0.0", HTTP_PORT), handler)
+        httpd.serve_forever()
+    except OSError:
+        log_message(f"Errore: Porta Web {HTTP_PORT} occupata!", color=COLOR_ERROR)
 
 async def start_websocket_server():
-    """Inizializza il server WebSocket asincrono."""
     ip = get_local_ip()
     update_ui_info(ip)
+    log_message("Server avviato. In attesa...", color="#aaaaaa")
     
-    log_message("="*30)
-    log_message("   LIQUID MOUSE - SERVER ONLINE")
-    log_message("="*30)
-    log_message(f"Indirizzo IP Host: {ip}")
-    log_message("In attesa di connessione client...")
-    
-    async with websockets.serve(handler, "0.0.0.0", PORT, ping_interval=None):
-        await asyncio.Future()
+    try:
+        async with websockets.serve(handler, "0.0.0.0", PORT, ping_interval=None):
+            await asyncio.Future()
+    except OSError:
+        log_message(f"ERRORE CRITICO: Porta {PORT} occupata!", color=COLOR_ERROR)
+        log_message("Chiudi altri server Liquid Mouse.", color=COLOR_ERROR)
 
 def run_services():
-    """Coordina l'avvio dei servizi HTTP e WebSocket."""
-    os.chdir(os.path.dirname(os.path.abspath(__file__)))
-    # Thread HTTP
-    http_thread = threading.Thread(target=start_http_server, args=(HTTP_PORT,), daemon=True)
-    http_thread.start()
-    # Loop Asyncio WebSocket
+    threading.Thread(target=start_http_server, daemon=True).start()
     asyncio.run(start_websocket_server())
 
-# --- GESTIONE INTERFACCIA GRAFICA (GUI) E SYSTEM TRAY ---
+# --- GUI & SYSTEM TRAY ---
 root = tk.Tk()
-log_widget = None
 ip_label_var = None
+status_var = None
+status_label = None
 tray_icon = None
 
 def create_tray_icon():
-    """Genera l'icona per la System Tray in runtime."""
-    width = 64
-    height = 64
-    color_bg = (43, 46, 74)   # #2b2e4a
-    color_fg = (136, 255, 204) # #88ffcc
-    
-    image = Image.new('RGB', (width, height), color_bg)
+    """Carica l'icona personalizzata o ne crea una di fallback se manca il file."""
+    if os.path.exists(ICON_PATH):
+        try:
+            return Image.open(ICON_PATH)
+        except Exception:
+             pass # Se il file è corrotto, usa il fallback
+
+    # Fallback: crea un'icona generata se icon.ico non esiste
+    image = Image.new('RGB', (64, 64), COLOR_BG)
     dc = ImageDraw.Draw(image)
-    # Disegna logo stilizzato
-    dc.ellipse((10, 10, 54, 54), fill=color_bg, outline=color_fg, width=3)
-    dc.ellipse((24, 24, 40, 40), fill=color_fg)
-    
+    dc.ellipse((10, 10, 54, 54), fill=COLOR_BG, outline=COLOR_ACCENT, width=3)
+    dc.ellipse((24, 24, 40, 40), fill=COLOR_ACCENT)
     return image
 
 def minimize_to_tray():
-    """Nasconde la finestra principale e notifica l'utente."""
     root.withdraw()
-    if tray_icon:
-        tray_icon.notify("Il server è attivo in background.", "Liquid Mouse")
+    if tray_icon: tray_icon.notify("Server attivo in background", "Liquid Mouse")
 
 def restore_window(icon=None, item=None):
-    """Ripristina la finestra principale."""
     root.deiconify()
     root.lift()
 
 def terminate_application(icon=None, item=None):
-    """Chiude l'applicazione e termina tutti i processi."""
-    if icon:
-        icon.stop()
+    if icon: icon.stop()
+    time.sleep(0.1)
     root.quit()
-    sys.exit(0)
+    os._exit(0)
 
 def run_tray_service():
-    """Gestisce il ciclo di vita dell'icona nella System Tray."""
     global tray_icon
-    image = create_tray_icon()
-    menu = (
-        pystray.MenuItem('Apri Pannello', restore_window, default=True),
-        pystray.MenuItem('Termina', terminate_application)
-    )
-    tray_icon = pystray.Icon("LiquidMouse", image, "Liquid Mouse", menu)
+    menu = (pystray.MenuItem('Apri', restore_window, default=True), pystray.MenuItem('Esci', terminate_application))
+    tray_icon = pystray.Icon("LiquidMouse", create_tray_icon(), "Liquid Mouse", menu)
     tray_icon.run()
 
 def setup_gui():
-    """Configura e costruisce l'interfaccia grafica Tkinter."""
-    global log_widget, ip_label_var
+    global ip_label_var, status_var, status_label
     
-    root.title("Liquid Mouse - Server Control")
-    root.geometry("450x550")
+    root.title("Liquid Mouse")
+    root.geometry("350x450")
     root.configure(bg=COLOR_BG)
-    
-    # Override del pulsante di chiusura finestra
+    root.resizable(False, False)
     root.protocol("WM_DELETE_WINDOW", minimize_to_tray)
 
-    # Header
-    tk.Label(root, text="🖱️ Liquid Mouse", font=("Segoe UI", 20, "bold"), bg=COLOR_BG, fg=COLOR_TEXT).pack(pady=(25, 5))
-    tk.Label(root, text="Pannello di Controllo Server", font=("Segoe UI", 10), bg=COLOR_BG, fg=COLOR_ACCENT).pack(pady=(0, 20))
+    # TENTATIVO CARICAMENTO ICONA FINESTRA
+    try:
+        root.iconbitmap(ICON_PATH)
+    except Exception:
+        pass # Ignora errori se l'icona non si carica (usa quella di default di TK)
 
-    # Box Informazioni Connessione
-    info_frame = tk.Frame(root, bg=COLOR_BG, highlightbackground=COLOR_ACCENT, highlightthickness=1)
-    info_frame.pack(padx=40, fill='x')
+    main_frame = tk.Frame(root, bg=COLOR_BG)
+    main_frame.pack(expand=True, fill='both', padx=30, pady=30)
+
+    tk.Label(main_frame, text="🖱️", font=("Segoe UI", 48), bg=COLOR_BG, fg=COLOR_TEXT).pack(pady=(20, 10))
+    tk.Label(main_frame, text="Liquid Mouse", font=("Segoe UI", 16, "bold"), bg=COLOR_BG, fg=COLOR_TEXT).pack()
+
+    tk.Frame(main_frame, height=30, bg=COLOR_BG).pack()
+
+    tk.Label(main_frame, text="CONNETTITI A:", font=("Segoe UI", 8, "bold"), bg=COLOR_BG, fg=COLOR_MUTED).pack()
     
-    ip_label_var = tk.StringVar(value="Rilevamento IP...")
-    tk.Label(info_frame, textvariable=ip_label_var, font=("Courier New", 14, "bold"), bg=COLOR_BG, fg="white", pady=15).pack()
-    tk.Label(info_frame, text="Inserisci questo IP nel dispositivo client", font=("Segoe UI", 8), bg=COLOR_BG, fg="#aaaaaa", pady=5).pack()
-
-    # Area Log
-    tk.Label(root, text="Log di Sistema:", font=("Segoe UI", 9, "bold"), bg=COLOR_BG, fg="#dddddd", anchor="w").pack(padx=40, pady=(20, 0), fill='x')
+    ip_label_var = tk.StringVar(value="...")
+    tk.Label(main_frame, textvariable=ip_label_var, font=("Segoe UI", 24, "bold"), bg=COLOR_BG, fg=COLOR_ACCENT).pack(pady=5)
     
-    log_widget = scrolledtext.ScrolledText(root, height=10, bg=COLOR_LOG_BG, fg=COLOR_LOG_TEXT, font=("Consolas", 9), relief="flat")
-    log_widget.pack(padx=40, pady=5, fill='both', expand=True)
+    tk.Label(main_frame, text="Inserisci questo IP\nnel browser del telefono", font=("Segoe UI", 9), bg=COLOR_BG, fg=COLOR_MUTED).pack(pady=10)
 
-    # Footer
-    tk.Label(root, text="Chiudi la finestra per ridurre a icona", font=("Segoe UI", 8), bg=COLOR_BG, fg="#aaaaaa").pack(pady=10)
+    # Status Bar
+    status_frame = tk.Frame(root, bg=COLOR_STATUS_BAR, height=40)
+    status_frame.pack(fill='x', side='bottom')
+    status_frame.pack_propagate(False)
 
-    # Avvio Thread Servizi
+    status_var = tk.StringVar(value="Avvio servizi...")
+    status_label = tk.Label(status_frame, textvariable=status_var, font=("Consolas", 9), bg=COLOR_STATUS_BAR, fg="#aaaaaa")
+    status_label.pack(expand=True)
+
     threading.Thread(target=run_services, daemon=True).start()
     threading.Thread(target=run_tray_service, daemon=True).start()
 
-def log_message(message):
-    """Scrive un messaggio thread-safe nell'area di log della GUI."""
-    def _write():
-        if log_widget:
-            from datetime import datetime
-            timestamp = datetime.now().strftime("%H:%M:%S")
-            log_widget.insert(tk.END, f"[{timestamp}] {message}\n")
-            log_widget.see(tk.END)
-    root.after(0, _write)
+def log_message(message, color="#aaaaaa"):
+    def _update():
+        if status_var:
+            status_var.set(message)
+            if status_label: status_label.config(fg=color)
+    root.after(0, _update)
 
 def update_ui_info(ip):
-    """Aggiorna l'etichetta dell'IP nell'interfaccia."""
     root.after(0, lambda: ip_label_var.set(f"{ip}:{HTTP_PORT}"))
 
-# --- MAIN ENTRY POINT ---
 if __name__ == "__main__":
     setup_gui()
     try:
