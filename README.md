@@ -1,4 +1,4 @@
-# 🖱️ Liquid Mouse v1.4.0
+# 🖱️ Liquid Mouse v1.5.0
 
 Liquid Mouse trasforma il tuo smartphone in un touchpad wireless fluido e professionale per il tuo computer, operante interamente sulla rete Wi-Fi locale.
 
@@ -250,6 +250,11 @@ Una volta installato:
 ## 📜 Changelog
 
 Tutti i cambiamenti importanti a questo progetto saranno documentati qui.
+
+### [1.5.0] - 2026-01-17 (Terminal Edition)
+#### ✨ Aggiunto
+- **Terminal GUI:** Nuova interfaccia server in stile terminale virtuale con animazioni di boot.
+- **Design System:** Aggiornato il tema grafico a "Terminal Dark" (Nero/Verde) su tutti i dispositivi.
 
 ### [1.4.0] - 2026-01-16 (Smart Menu Edition)
 #### ✨ Aggiunto

@@ -1,7 +1,7 @@
 """
 🖱️ LIQUID MOUSE - Server Application
 ====================================
-Versione: 1.4.0 (Smart Menu Edition)
+Versione: 1.5.0 (Terminal Edition)
 """
 
 import asyncio
@@ -39,21 +39,30 @@ HTTP_PORT = 8000
 # --- FIX ICONA TASKBAR WINDOWS ---
 try:
     # Disaccoppia l'icona dalla shell di Python per mostrarla correttamente nella barra
-    ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID('liquidmouse.server.1.4.0')
+    ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID('liquidmouse.server.1.5.0')
 except Exception:
     pass
 
+# --- FIX DPI SCALING (Alta Risoluzione) ---
+try:
+    ctypes.windll.shcore.SetProcessDpiAwareness(1)
+except Exception:
+    ctypes.windll.user32.SetProcessDPIAware()
+
 # --- COLORI (Design System) ---
-COLOR_BG = "#2b2e4a"
-COLOR_TEXT = "#ffffff"
-COLOR_ACCENT = "#88ffcc"
-COLOR_MUTED = "#6c7099"
-COLOR_ERROR = "#ff6b6b"
-COLOR_STATUS_BAR = "#25273f"
+COLOR_BG = "#0F0F0F"
+COLOR_TEXT = "#FFFFFF"
+COLOR_ACCENT = "#00FF00"
+COLOR_MUTED = "#666666"
+COLOR_ERROR = "#FF4444"
+COLOR_TRANSPARENT = "#FF00FF" # Magenta per trasparenza sicura
 
 # --- PERCORSO FILE ---
 # Ottiene la cartella dove si trova lo script per caricare i file (come l'icona) in modo sicuro
-BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+if getattr(sys, 'frozen', False):
+    BASE_DIR = sys._MEIPASS
+else:
+    BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 ICON_PATH = os.path.join(BASE_DIR, "icon.ico")
 
 # --- UTILITIES DI RETE ---
@@ -132,7 +141,6 @@ def start_http_server():
 
 async def start_websocket_server():
     ip = get_local_ip()
-    update_ui_info(ip)
     log_message("Server avviato. In attesa...", color="#aaaaaa")
     
     try:
@@ -192,10 +200,19 @@ def setup_gui():
     global ip_label_var, status_var, status_label
     
     root.title("Liquid Mouse")
-    root.geometry("350x450")
-    root.configure(bg=COLOR_BG)
-    root.resizable(False, False)
-    root.protocol("WM_DELETE_WINDOW", minimize_to_tray)
+    
+    # Configurazione Finestra (Terminale Virtuale)
+    w, h = 420, 260
+    ws = root.winfo_screenwidth()
+    hs = root.winfo_screenheight()
+    x = (ws/2) - (w/2)
+    y = (hs/2) - (h/2)
+    root.geometry('%dx%d+%d+%d' % (w, h, x, y))
+    
+    root.overrideredirect(True) # Rimuove bordi OS
+    root.attributes('-alpha', 0.0) # Inizia invisibile per animazione
+    root.wm_attributes("-transparentcolor", COLOR_TRANSPARENT)
+    root.configure(bg=COLOR_TRANSPARENT)
 
     # TENTATIVO CARICAMENTO ICONA FINESTRA
     try:
@@ -203,29 +220,103 @@ def setup_gui():
     except Exception:
         pass # Ignora errori se l'icona non si carica (usa quella di default di TK)
 
-    main_frame = tk.Frame(root, bg=COLOR_BG)
-    main_frame.pack(expand=True, fill='both', padx=30, pady=30)
+    # Canvas per sfondo arrotondato
+    canvas = tk.Canvas(root, bg=COLOR_TRANSPARENT, highlightthickness=0)
+    canvas.pack(fill="both", expand=True)
 
-    tk.Label(main_frame, text="🖱️", font=("Segoe UI", 48), bg=COLOR_BG, fg=COLOR_TEXT).pack(pady=(20, 10))
-    tk.Label(main_frame, text="Liquid Mouse", font=("Segoe UI", 16, "bold"), bg=COLOR_BG, fg=COLOR_TEXT).pack()
+    def create_rounded_rect(c, x1, y1, x2, y2, r, **kwargs):
+        points = (x1+r, y1, x1+r, y1, x2-r, y1, x2-r, y1, x2, y1, x2, y1+r, x2, y1+r, x2, y2-r, x2, y2-r, x2, y2, x2-r, y2, x2-r, y2, x1+r, y2, x1+r, y2, x1, y2, x1, y2-r, x1, y2-r, x1, y1+r, x1, y1+r, x1, y1)
+        return c.create_polygon(points, smooth=True, **kwargs)
 
-    tk.Frame(main_frame, height=30, bg=COLOR_BG).pack()
+    # Disegna corpo terminale
+    create_rounded_rect(canvas, 10, 10, w-10, h-10, 20, fill=COLOR_BG, outline="#333333", width=1)
 
-    tk.Label(main_frame, text="CONNETTITI A:", font=("Segoe UI", 8, "bold"), bg=COLOR_BG, fg=COLOR_MUTED).pack()
+    # Logica trascinamento finestra
+    def get_pos(event):
+        root.x_offset = event.x
+        root.y_offset = event.y
+    def move_window(event):
+        root.geometry(f'+{event.x_root - root.x_offset}+{event.y_root - root.y_offset}')
     
-    ip_label_var = tk.StringVar(value="...")
-    tk.Label(main_frame, textvariable=ip_label_var, font=("Segoe UI", 24, "bold"), bg=COLOR_BG, fg=COLOR_ACCENT).pack(pady=5)
+    canvas.bind("<Button-1>", get_pos)
+    canvas.bind("<B1-Motion>", move_window)
+
+    # Elementi UI
+    title_lbl = tk.Label(root, text="", font=("Consolas", 14, "bold"), bg=COLOR_BG, fg=COLOR_TEXT)
+    title_lbl.place(x=40, y=40)
+
+    # Animazione Sequenziale Terminale
+    def type_sequence(widgets_data, index=0):
+        if index >= len(widgets_data): return
+        
+        target, text, speed = widgets_data[index]
+        
+        def type_char(current_idx=0):
+            cursor = "█" if current_idx < len(text) else ""
+            display = text[:current_idx] + cursor
+            
+            if isinstance(target, tk.StringVar):
+                target.set(display)
+            else:
+                target.config(text=display)
+                
+            if current_idx < len(text):
+                root.after(speed, lambda: type_char(current_idx+1))
+            else:
+                # Pulisce cursore finale
+                if isinstance(target, tk.StringVar): target.set(text)
+                else: target.config(text=text)
+                # Passa al prossimo elemento
+                type_sequence(widgets_data, index+1)
+        
+        type_char()
     
-    tk.Label(main_frame, text="Inserisci questo IP\nnel browser del telefono", font=("Segoe UI", 9), bg=COLOR_BG, fg=COLOR_MUTED).pack(pady=10)
+    # Avvio animazione dopo breve delay
 
-    # Status Bar
-    status_frame = tk.Frame(root, bg=COLOR_STATUS_BAR, height=40)
-    status_frame.pack(fill='x', side='bottom')
-    status_frame.pack_propagate(False)
+    # Tasto Chiudi (Cerchio Rosso)
+    cx, cy, cr = w-35, 35, 12
+    close_bg = canvas.create_oval(cx-cr, cy-cr, cx+cr, cy+cr, fill="#FF5555", outline="#FF5555")
+    close_fg = canvas.create_text(cx, cy, text="×", font=("Arial", 13, "bold"), fill="white")
+    
+    for item in (close_bg, close_fg):
+        canvas.tag_bind(item, "<Button-1>", lambda e: minimize_to_tray())
+        canvas.tag_bind(item, "<Enter>", lambda e: canvas.config(cursor="hand2"))
+        canvas.tag_bind(item, "<Leave>", lambda e: canvas.config(cursor=""))
 
-    status_var = tk.StringVar(value="Avvio servizi...")
-    status_label = tk.Label(status_frame, textvariable=status_var, font=("Consolas", 9), bg=COLOR_STATUS_BAR, fg="#aaaaaa")
-    status_label.pack(expand=True)
+    # Definizione Widget (Inizialmente vuoti per animazione)
+    lbl_ip_header = tk.Label(root, text="", font=("Consolas", 8, "bold"), bg=COLOR_BG, fg=COLOR_MUTED)
+    lbl_ip_header.place(x=40, y=90)
+    
+    ip_label_var = tk.StringVar(value="")
+    tk.Label(root, textvariable=ip_label_var, font=("Consolas", 22), bg=COLOR_BG, fg=COLOR_TEXT).place(x=40, y=110)
+    
+    lbl_status_header = tk.Label(root, text="", font=("Consolas", 8, "bold"), bg=COLOR_BG, fg=COLOR_MUTED)
+    lbl_status_header.place(x=40, y=170)
+
+    status_var = tk.StringVar(value="")
+    status_label = tk.Label(root, textvariable=status_var, font=("Consolas", 10), bg=COLOR_BG, fg=COLOR_MUTED)
+    status_label.place(x=40, y=190)
+
+    # Configurazione Sequenza Animazione
+    anim_sequence = [
+        (title_lbl, ">_ Liquid Mouse", 30),
+        (lbl_ip_header, "INDIRIZZO SERVER", 10),
+        (ip_label_var, f"{get_local_ip()}:{HTTP_PORT}", 20),
+        (lbl_status_header, "STATO", 10),
+        (status_var, "Avvio servizi...", 20)
+    ]
+    root.after(300, lambda: type_sequence(anim_sequence))
+
+    # Animazione Fade In
+    def fade_in(alpha=0):
+        alpha += 0.04
+        if alpha < 1.0:
+            root.attributes('-alpha', alpha)
+            root.after(15, lambda: fade_in(alpha))
+        else:
+            root.attributes('-alpha', 1.0)
+    
+    root.after(100, fade_in)
 
     threading.Thread(target=run_services, daemon=True).start()
     threading.Thread(target=run_tray_service, daemon=True).start()

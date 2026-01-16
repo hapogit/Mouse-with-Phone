@@ -1,6 +1,6 @@
 {
   "name": "Liquid Mouse",
-  "version": "1.4.0",
+  "version": "1.5.0",
   "description": "Applicazione di controllo remoto mouse e tastiera via WebSocket.",
   "server": {
     "port": 8765,
@@ -15,6 +15,7 @@
     "Pillow": "10.2.0"
   },
   "features": [
+    "Terminal GUI Style",
     "Interfaccia Grafica (GUI)",
     "System Tray",
     "Smart Menu UI",
